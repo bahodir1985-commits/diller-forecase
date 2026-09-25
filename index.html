@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2026-2027 Oylik Supply Chain Planning</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .table-container {
+            max-height: 600px;
+            overflow-x: auto;
+            overflow-y: auto;
+        }
+        .sticky-col-1 { position: sticky; left: 0; z-index: 20; background-color: #fff; }
+        .sticky-col-2 { position: sticky; left: 90px; z-index: 20; background-color: #fff; }
+        .sticky-col-3 { position: sticky; left: 250px; z-index: 20; background-color: #fff; }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800 p-2 md:p-6">
+
+    <div class="max-w-[130rem] mx-auto space-y-6">
+        
+        <!-- Header -->
+        <div class="bg-white rounded-xl shadow-md p-6 flex flex-col md:flex-row justify-between items-center gap-4 border-l-8 border-blue-600">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-900" id="mainTitle">2026-2027 Oylik Zakaz va Prognoz Rejalashtirish</h1>
+                <p class="text-sm text-slate-500" id="mainSubtitle">Yillar va oylar kesimida dillerlar va postavshiklar analitikasi</p>
+            </div>
+            
+            <div class="flex flex-wrap items-center gap-3">
+                <div class="flex border rounded-lg overflow-hidden border-slate-300">
+                    <button onclick="setLanguage('uz')" id="lang-uz" class="px-3 py-1.5 text-xs font-bold bg-blue-600 text-white">UZ</button>
+                    <button onclick="setLanguage('ru')" id="lang-ru" class="px-3 py-1.5 text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200">RU</button>
+                    <button onclick="setLanguage('en')" id="lang-en" class="px-3 py-1.5 text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200">EN</button>
+                </div>
+
+                <!-- FIREBASE TUGMALARI -->
+                <button onclick="saveDataToFirebase()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs font-bold shadow flex items-center gap-2 transition">
+                    <i class="fa-solid fa-cloud-arrow-up"></i> Firebase'ga saqlash
+                </button>
+                <button onclick="loadDataFromFirebase()" class="bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 rounded-lg text-xs font-bold shadow flex items-center gap-2 transition">
+                    <i class="fa-solid fa-cloud-arrow-down"></i> Firebase'dan yuklash
+                </button>
+
+                <!-- POSTAVSHIKLAR VA LEAD TIME TUGMASI -->
+                <button onclick="openSupplierModal()" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-2 rounded-lg text-xs font-bold shadow flex items-center gap-2 transition">
+                    <i class="fa-solid fa-truck-ramp-box"></i> Postavshiklar & Lead Time
+                </button>
+
+                <!-- POSTAVSHIK BO'YICHA SHABLON YUKLASH -->
+                <div class="flex items-center bg-slate-700 text-white rounded-lg overflow-hidden shadow">
+                    <select id="templateSupplierSelect" class="bg-slate-700 text-white text-xs font-semibold px-2 py-2 focus:outline-none cursor-pointer">
+                        <!-- JS Dynamic -->
+                    </select>
+                    <button onclick="downloadUzbekTemplate()" class="bg-slate-800 hover:bg-slate-900 px-3 py-2 text-xs font-medium flex items-center gap-1.5 transition">
+                        <i class="fa-solid fa-file-arrow-down text-amber-400"></i> Shablon skachat
+                    </button>
+                </div>
+
+                <!-- EXCEL'DAN IMPORT -->
+                <label class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium shadow flex items-center gap-2 transition text-sm cursor-pointer">
+                    <i class="fa-solid fa-file-import"></i> <span id="btnImport">Excel'dan yuklash</span>
+                    <input type="file" id="excelFileInput" accept=".xlsx, .xls" class="hidden" onchange="importFromExcel(event)">
+                </label>
+
+                <!-- EXCEL'GA EKSPORT -->
+                <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium shadow flex items-center gap-2 transition text-sm">
+                    <i class="fa-solid fa-file-excel"></i> <span id="btnExport">Excelga saqlash</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 2026 VA 2027 OYLARNI TANLASH PANELI -->
+        <div class="bg-white rounded-xl shadow-md p-5 border border-slate-200 space-y-3">
+            <div class="flex items-center justify-between border-b pb-2">
+                <div class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-calendar-days text-blue-600"></i> Rejalashtirilayotgan Davrni Tanlang:
+                </div>
+                <div class="text-xs font-semibold text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-200" id="currentPeriodBadge">
+                    Tanlangan davr: 2026 - Yanvar
+                </div>
+            </div>
+
+            <!-- 2026 YIL OYLARI -->
+            <div class="space-y-1">
+                <div class="text-xs font-bold text-slate-500">2026-YIL:</div>
+                <div class="flex flex-wrap gap-1.5" id="months2026Container"></div>
+            </div>
+
+            <!-- 2027 YIL OYLARI -->
+            <div class="space-y-1 pt-2 border-t border-slate-100">
+                <div class="text-xs font-bold text-slate-500">2027-YIL:</div>
+                <div class="flex flex-wrap gap-1.5" id="months2027Container"></div>
+            </div>
+        </div>
+
+        <!-- ZAKAZNI TASDIQLASH BOSQICHLARI PANEL -->
+        <div class="bg-white rounded-xl shadow-md p-6 border border-slate-200 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-file-signature text-blue-600 text-lg"></i>
+                    <h2 class="text-lg font-bold text-slate-800">Zakazni Tasdiqlash Bosqichlari (<span id="approvalPeriodTitle" class="text-blue-600">2026 - Yanvar</span>)</h2>
+                </div>
+                <button onclick="resetApprovalWorkflow()" class="text-xs text-slate-500 hover:text-red-600 flex items-center gap-1">
+                    <i class="fa-solid fa-rotate-left"></i> Ushbu oy uchun bosqichlarni nolga tushirish
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4" id="approvalWorkflowContainer"></div>
+        </div>
+
+        <!-- Supplier Tabs & Filters -->
+        <div class="bg-white rounded-xl shadow-md p-6 space-y-4">
+            
+            <!-- POSTAVSHIKLAR FILTRI -->
+            <div class="space-y-2">
+                <div class="text-xs font-bold text-slate-600 flex items-center gap-2">
+                    <i class="fa-solid fa-truck-field text-amber-600"></i> Postavshiklar Filtr Tizimi:
+                </div>
+                <div class="flex flex-wrap gap-1.5 p-2 bg-slate-100 rounded-xl border border-slate-200" id="supplierTabs"></div>
+            </div>
+
+            <!-- DILLERLAR TUGMALARI -->
+            <div class="space-y-2">
+                <div class="text-xs font-bold text-slate-600 flex items-center gap-2">
+                    <i class="fa-solid fa-store text-blue-600"></i> Diller Bo'limi (Ko'rinish Rejimi):
+                </div>
+                <div class="flex flex-wrap gap-1.5 p-2 bg-slate-100 rounded-xl border border-slate-200" id="dealerTabButtons"></div>
+            </div>
+
+            <!-- Search & Status Bar -->
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <div class="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                    <input type="text" id="searchInput" oninput="renderTable()" placeholder="Artikel, Postavshik yoki Mahsulot nomi..." class="border border-slate-300 rounded-lg px-4 py-2 text-sm w-full sm:w-80 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div id="leadTimeBadge" class="text-xs font-semibold px-4 py-2 rounded-full bg-blue-100 text-blue-800 whitespace-nowrap">
+                    Lead Time: Barcha Postavshiklar
+                </div>
+            </div>
+
+            <!-- Interaktiv Jadval -->
+            <div class="table-container border border-slate-200 rounded-lg relative">
+                <table class="w-full text-xs text-left text-slate-600 border-collapse whitespace-nowrap">
+                    <thead class="text-[11px] text-slate-700 uppercase bg-slate-100 sticky top-0 z-30 border-b">
+                        <tr id="headerRowTop"></tr>
+                        <tr id="headerRowSub" class="bg-slate-200 border-b text-[10px]"></tr>
+                    </thead>
+                    <tbody id="productTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- POSTAVSHIKLAR VA LEAD TIME OYNASI (MODAL) -->
+    <div id="supplierModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 border border-slate-200">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-truck-field text-amber-600"></i> Postavshiklar va Lead Time
+                </h3>
+                <button onclick="closeSupplierModal()" class="text-slate-400 hover:text-red-500 text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3 max-h-80 overflow-y-auto pr-1" id="supplierListContainer"></div>
+
+            <div class="pt-3 border-t flex gap-2">
+                <input type="text" id="newSupplierName" placeholder="Yangi Postavshik..." class="border rounded-lg px-3 py-1.5 text-xs flex-1 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="number" id="newSupplierLeadTime" placeholder="LT (kun)" class="border rounded-lg px-3 py-1.5 text-xs w-24 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="addNewSupplier()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold">
+                    <i class="fa-solid fa-plus"></i> Qo'shish
+                </button>
+            </div>
+
+            <div class="text-right pt-2">
+                <button onclick="closeSupplierModal()" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold">
+                    Yopish
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FIREBASE MODULE INTEGRATSIYASI -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCwOM_8xcrqmaZupwtyyuAJqwzDzfXtMtM",
+            authDomain: "diller-forecase.firebaseapp.com",
+            projectId: "diller-forecase",
+            storageBucket: "diller-forecase.firebasestorage.app",
+            messagingSenderId: "361049256671",
+            appId: "1:361049256671:web:c002ae65509ba45a74ef6a",
+            measurementId: "G-2XBHBQQ52L"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Firebase saqlash funksiyasi
+        window.saveDataToFirebase = async function() {
+            try {
+                const docId = `data_${selectedYear}_${selectedMonthIdx}`;
+                await setDoc(doc(db, "supply_chain_plan", docId), {
+                    suppliers: suppliers,
+                    approvalState: monthlyApprovalState,
+                    year: selectedYear,
+                    monthIdx: selectedMonthIdx,
+                    updatedAt: new Date().toISOString()
+                });
+                alert("Ma'lumotlar Firebase bazasiga muvaffaqiyatli saqlandi!");
+            } catch (error) {
+                console.error("Firebase'ga saqlashda xatolik:", error);
+                alert("Xatolik yuz berdi: " + error.message);
+            }
+        };
+
+        // Firebase yuklash funksiyasi
+        window.loadDataFromFirebase = async function() {
+            try {
+                const docId = `data_${selectedYear}_${selectedMonthIdx}`;
+                const docRef = doc(db, "supply_chain_plan", docId);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    if (data.suppliers) {
+                        Object.assign(suppliers, data.suppliers);
+                    }
+                    if (data.approvalState) {
+                        Object.assign(monthlyApprovalState, data.approvalState);
+                    }
+                    populateTemplateSupplierDropdown();
+                    renderMonthSelectors();
+                    renderWorkflow();
+                    renderTabs();
+                    renderTable();
+                    alert("Ma'lumotlar Firebase bazasidan muvaffaqiyatli yuklandi!");
+                } else {
+                    alert("Ushbu oy uchun Firebase bazasida ma'lumot topilmadi.");
+                }
+            } catch (error) {
+                console.error("Firebase'dan yuklashda xatolik:", error);
+                alert("Xatolik yuz berdi: " + error.message);
+            }
+        };
+
+        // Sahifa yuklanganda avtomatik Firebase'dan o'qishga urinib ko'rish
+        window.addEventListener('DOMContentLoaded', () => {
+            window.loadDataFromFirebase();
+        });
+    </script>
+
+    <!-- ASOSIY AMALIY KODLAR -->
+    <script>
+        const monthNamesUz = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr"];
+        
+        const dealerNames = [
+            "1. Toshkent v.", "2. Andijon", "3. Farg'ona", "4. Namangan",
+            "5. Samarqand", "6. Buxoro", "7. Xorazm", "8. Qashqadaryo",
+            "9. Surxondaryo", "10. Navoiy", "11. Jizzax", "12. Qoraqalp."
+        ];
+
+        let selectedYear = 2026;
+        let selectedMonthIdx = 0;
+
+        const monthlyApprovalState = {};
+
+        function getApprovalStepsTemplate() {
+            return [
+                { id: 0, title: "1. Diller", desc: "Diller o'z zapasi, prognozi va talabini tasdiqlash", approvedAt: null },
+                { id: 1, title: "2. Regional Menejer", desc: "12 diller bo'yicha talab va rasxodni ko'rib chiqish", approvedAt: null },
+                { id: 2, title: "3. Savdo Bo'limi", desc: "Mavsumiylik va umumiy sotuv rejasini solishtirish", approvedAt: null },
+                { id: 3, title: "4. VED Menejer", desc: "Logistika va yetkazib berish vaqtini (Lead Time) tekshirish", approvedAt: null },
+                { id: 4, title: "5. Direktor O'rinbosari", desc: "Byudjet va yakuniy zakaz hajmini tasdiqlash", approvedAt: null }
+            ];
+        }
+
+        function getOrCreateCurrentApprovalData() {
+            const key = `${selectedYear}_${selectedMonthIdx}`;
+            if (!monthlyApprovalState[key]) {
+                monthlyApprovalState[key] = {
+                    currentStep: 0,
+                    steps: getApprovalStepsTemplate()
+                };
+            }
+            return monthlyApprovalState[key];
+        }
+
+        const translations = {
+            uz: {
+                mainTitle: "2026-2027 Oylik Zakaz va Prognoz Rejalashtirish",
+                mainSubtitle: "Yillar va oylar kesimida dillerlar va postavshiklar analitikasi",
+                btnExport: "Excelga saqlash",
+                btnImport: "Excel'dan yuklash",
+                searchPlaceholder: "Artikel, Postavshik yoki Mahsulot nomi...",
+                leadTimeText: "Lead Time:",
+                days: "kun",
+                monthsLabel: "Zapas (Oy)",
+                tashkentTotalStock: "Toshkent Jami Zapas",
+                tashkentMoS: "Toshkent Zapas (Oy)"
+            },
+            ru: {
+                mainTitle: "Ежемесячное Планирование Заказов 2026-2027",
+                mainSubtitle: "Аналитика дилеров и поставщиков по годам и месяцам",
+                btnExport: "Скачать в Excel",
+                btnImport: "Загрузить из Excel",
+                searchPlaceholder: "Поиск артикула, поставщика или названия...",
+                leadTimeText: "Срок доставки:",
+                days: "дней",
+                monthsLabel: "Запас (Мес)",
+                tashkentTotalStock: "Ташкент Всего Запас",
+                tashkentMoS: "Ташкент Запас (Мес)"
+            },
+            en: {
+                mainTitle: "2026-2027 Monthly Order Planning",
+                mainSubtitle: "Dealer and supplier analytics by year and month",
+                btnExport: "Export Excel",
+                btnImport: "Import Excel",
+                searchPlaceholder: "Search SKU, Supplier or Name...",
+                leadTimeText: "Lead Time:",
+                days: "days",
+                monthsLabel: "Stock (Mo)",
+                tashkentTotalStock: "Tashkent Total Stock",
+                tashkentMoS: "Tashkent Stock (Mo)"
+            }
+        };
+
+        let currentLang = 'uz';
+        let activeSupplierKey = 'all';
+        let selectedDealerFilter = 'all';
+
+        const suppliers = {
+            'China': { name: 'Xitoy', leadTimeDays: 45, items: [] },
+            'Turkey': { name: 'Turkiya', leadTimeDays: 25, items: [] },
+            'Dubai': { name: 'Dubay', leadTimeDays: 20, items: [] },
+            'Korea': { name: 'Koreya', leadTimeDays: 35, items: [] }
+        };
+
+        function renderMonthSelectors() {
+            const container2026 = document.getElementById('months2026Container');
+            const container2027 = document.getElementById('months2027Container');
+            
+            container2026.innerHTML = '';
+            container2027.innerHTML = '';
+
+            monthNamesUz.forEach((mName, idx) => {
+                const key2026 = `2026_${idx}`;
+                const state2026 = monthlyApprovalState[key2026];
+                const is2026Approved = state2026 && state2026.currentStep >= 5;
+
+                const is2026Active = selectedYear === 2026 && selectedMonthIdx === idx;
+                const btn2026 = document.createElement('button');
+                btn2026.className = `px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1 ${
+                    is2026Active ? 'bg-blue-600 text-white shadow font-bold' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`;
+                btn2026.innerHTML = `${mName} ${is2026Approved ? '<i class="fa-solid fa-circle-check text-emerald-400"></i>' : ''}`;
+                btn2026.onclick = () => selectPeriod(2026, idx);
+                container2026.appendChild(btn2026);
+
+                const key2027 = `2027_${idx}`;
+                const state2027 = monthlyApprovalState[key2027];
+                const is2027Approved = state2027 && state2027.currentStep >= 5;
+
+                const is2027Active = selectedYear === 2027 && selectedMonthIdx === idx;
+                const btn2027 = document.createElement('button');
+                btn2027.className = `px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1 ${
+                    is2027Active ? 'bg-indigo-600 text-white shadow font-bold' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`;
+                btn2027.innerHTML = `${mName} ${is2027Approved ? '<i class="fa-solid fa-circle-check text-emerald-400"></i>' : ''}`;
+                btn2027.onclick = () => selectPeriod(2027, idx);
+                container2027.appendChild(btn2027);
+            });
+
+            document.getElementById('currentPeriodBadge').innerText = `Tanlangan davr: ${selectedYear} - ${monthNamesUz[selectedMonthIdx]}`;
+            document.getElementById('approvalPeriodTitle').innerText = `${selectedYear} - ${monthNamesUz[selectedMonthIdx]}`;
+        }
+
+        function selectPeriod(year, monthIdx) {
+            selectedYear = year;
+            selectedMonthIdx = monthIdx;
+            renderMonthSelectors();
+            renderWorkflow();
+            renderTable();
+            if (typeof window.loadDataFromFirebase === 'function') {
+                window.loadDataFromFirebase();
+            }
+        }
+
+        function generateInitialData() {
+            const categories = {
+                'China': { prefix: 'CN', name: 'Electronics' },
+                'Turkey': { prefix: 'TR', name: 'Textile' },
+                'Dubai': { prefix: 'AE', name: 'Cosmetics' },
+                'Korea': { prefix: 'KR', name: 'Auto Parts' }
+            };
+
+            Object.keys(suppliers).forEach(sup => {
+                const info = categories[sup] || { prefix: sup.substring(0,2).toUpperCase(), name: `${sup} Goods` };
+                suppliers[sup].items = [];
+
+                for (let i = 1; i <= 15; i++) {
+                    const periodData = {};
+                    [2026, 2027].forEach(y => {
+                        periodData[y] = {};
+                        for (let m = 0; m < 12; m++) {
+                            periodData[y][m] = {
+                                tashkentStock: Math.floor(Math.random() * 80) + 10,
+                                tashkentInTransit: Math.floor(Math.random() * 40),
+                                dealers: Array.from({length: 12}, () => ({
+                                    stock: Math.floor(Math.random() * 15) + 1,
+                                    inTransit: Math.floor(Math.random() * 10),
+                                    spend: Math.floor(Math.random() * 25) + 5,
+                                    forecast: Math.random() > 0.5 ? Math.floor(Math.random() * 20) : 0
+                                }))
+                            };
+                        }
+                    });
+
+                    suppliers[sup].items.push({
+                        sku: `${info.prefix}-${1000 + i}`,
+                        name: `${info.name} - Item ${i}`,
+                        supplierKey: sup,
+                        periods: periodData
+                    });
+                }
+            });
+        }
+
+        function renderWorkflow() {
+            const container = document.getElementById('approvalWorkflowContainer');
+            container.innerHTML = '';
+
+            const approvalData = getOrCreateCurrentApprovalData();
+
+            approvalData.steps.forEach((step, idx) => {
+                const isCurrent = idx === approvalData.currentStep;
+                const isCompleted = idx < approvalData.currentStep;
+
+                let cardBg = isCurrent ? "border-blue-500 bg-white shadow-md" : (isCompleted ? "border-emerald-300 bg-emerald-50/40" : "border-slate-200 bg-slate-50 opacity-75");
+                let iconClass = isCompleted ? "fa-circle-check text-emerald-600" : (isCurrent ? "fa-clock text-amber-500" : "fa-lock text-slate-400");
+
+                let btnHtml = '';
+                if (isCompleted) {
+                    btnHtml = `
+                        <div class="w-full py-1.5 bg-emerald-100 text-emerald-800 text-center font-bold rounded-lg text-xs flex flex-col items-center justify-center gap-0.5">
+                            <span class="flex items-center gap-1"><i class="fa-solid fa-check"></i> Tasdiqlandi</span>
+                            <span class="text-[10px] font-normal text-emerald-700">${step.approvedAt || ''}</span>
+                        </div>`;
+                } else if (isCurrent) {
+                    btnHtml = `<button onclick="approveCurrentStep(${idx})" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs shadow transition">Tasdiqlash</button>`;
+                } else {
+                    btnHtml = `<div class="w-full py-2 bg-slate-200 text-slate-500 text-center font-semibold rounded-lg text-xs">Kutilmoqda</div>`;
+                }
+
+                const card = document.createElement('div');
+                card.className = `p-4 rounded-xl border flex flex-col justify-between space-y-3 transition ${cardBg}`;
+                card.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <h3 class="font-bold text-slate-800 text-sm">${step.title}</h3>
+                            <i class="fa-solid ${iconClass} text-sm"></i>
+                        </div>
+                        <p class="text-[11px] text-slate-500 leading-tight">${step.desc}</p>
+                    </div>
+                    <div>
+                        ${btnHtml}
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function approveCurrentStep(stepIdx) {
+            const approvalData = getOrCreateCurrentApprovalData();
+            if (stepIdx === approvalData.currentStep) {
+                const now = new Date();
+                const day = String(now.getDate()).padStart(2, '0');
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const year = now.getFullYear();
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                
+                approvalData.steps[stepIdx].approvedAt = `${day}.${month}.${year} ${hours}:${minutes}`;
+                approvalData.currentStep++;
+                
+                renderMonthSelectors();
+                renderWorkflow();
+                if (typeof window.saveDataToFirebase === 'function') {
+                    window.saveDataToFirebase();
+                }
+            }
+        }
+
+        function resetApprovalWorkflow() {
+            const key = `${selectedYear}_${selectedMonthIdx}`;
+            monthlyApprovalState[key] = {
+                currentStep: 0,
+                steps: getApprovalStepsTemplate()
+            };
+            renderMonthSelectors();
+            renderWorkflow();
+            if (typeof window.saveDataToFirebase === 'function') {
+                window.saveDataToFirebase();
+            }
+        }
+
+        function populateDealerTabs() {
+            const container = document.getElementById('dealerTabButtons');
+            container.innerHTML = '';
+
+            const allBtn = document.createElement('button');
+            const isAllActive = selectedDealerFilter === 'all';
+            allBtn.className = `px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                isAllActive ? 'bg-blue-600 text-white shadow' : 'bg-white text-slate-700 hover:bg-slate-200'
+            }`;
+            allBtn.innerHTML = `🌐 Barcha Dillerlar Jami (12)`;
+            allBtn.onclick = () => changeDealerFilter('all');
+            container.appendChild(allBtn);
+
+            dealerNames.forEach((name, idx) => {
+                const btn = document.createElement('button');
+                const isActive = selectedDealerFilter == idx;
+                btn.className = `px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                    isActive ? 'bg-indigo-600 text-white shadow' : 'bg-white text-slate-700 hover:bg-slate-200'
+                }`;
+                btn.innerHTML = `📍 ${name}`;
+                btn.onclick = () => changeDealerFilter(idx);
+                container.appendChild(btn);
+            });
+        }
+
+        function populateTemplateSupplierDropdown() {
+            const select = document.getElementById('templateSupplierSelect');
+            select.innerHTML = '';
+            Object.keys(suppliers).forEach(k => {
+                const opt = document.createElement('option');
+                opt.value = k;
+                opt.innerText = suppliers[k].name || k;
+                select.appendChild(opt);
+            });
+        }
+
+        function changeDealerFilter(val) {
+            selectedDealerFilter = val;
+            populateDealerTabs();
+            renderTable();
+        }
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            const t = translations[lang];
+
+            ['uz', 'ru', 'en'].forEach(l => {
+                document.getElementById(`lang-${l}`).className = l === lang 
+                    ? "px-3 py-1.5 text-xs font-bold bg-blue-600 text-white" 
+                    : "px-3 py-1.5 text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200";
+            });
+
+            document.getElementById('mainTitle').innerText = t.mainTitle;
+            document.getElementById('mainSubtitle').innerText = t.mainSubtitle;
+            document.getElementById('btnExport').innerText = t.btnExport;
+            document.getElementById('btnImport').innerText = t.btnImport;
+            document.getElementById('searchInput').placeholder = t.searchPlaceholder;
+
+            populateDealerTabs();
+            populateTemplateSupplierDropdown();
+            renderTabs();
+            renderTable();
+        }
+
+        function renderTabs() {
+            const tabsContainer = document.getElementById('supplierTabs');
+            tabsContainer.innerHTML = '';
+
+            let totalAllItemsCount = 0;
+            Object.keys(suppliers).forEach(k => totalAllItemsCount += suppliers[k].items.length);
+
+            const allBtn = document.createElement('button');
+            const isAllActive = activeSupplierKey === 'all';
+            allBtn.className = `px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                isAllActive ? 'bg-amber-600 text-white shadow' : 'bg-white text-slate-700 hover:bg-slate-200'
+            }`;
+            allBtn.innerHTML = `<span>🌐 Barcha Postavshiklar</span> <span class="bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded-full text-[10px] font-bold">${totalAllItemsCount}</span>`;
+            allBtn.onclick = () => {
+                activeSupplierKey = 'all';
+                renderTabs();
+                renderTable();
+            };
+            tabsContainer.appendChild(allBtn);
+
+            Object.keys(suppliers).forEach(supKey => {
+                const isActive = supKey === activeSupplierKey;
+                const tab = document.createElement('button');
+                tab.className = `px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                    isActive ? 'bg-blue-600 text-white shadow' : 'bg-white text-slate-700 hover:bg-slate-200'
+                }`;
+                const supName = suppliers[supKey].name || supKey;
+                tab.innerHTML = `<span>${supName}</span> <span class="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded-full text-[10px] font-bold">${suppliers[supKey].items.length}</span>`;
+                tab.onclick = () => {
+                    activeSupplierKey = supKey;
+                    renderTabs();
+                    renderTable();
+                };
+                tabsContainer.appendChild(tab);
+            });
+        }
+
+        function calculateDealerOrder(stock, inTransit, spend, forecast, leadTimeDays) {
+            const effectiveMonthlySpend = spend + forecast;
+            const required = effectiveMonthlySpend * (leadTimeDays / 30);
+            const availableTotal = stock + inTransit;
+            const needed = Math.ceil(required - availableTotal);
+            return needed > 0 ? needed : 0;
+        }
+
+        function calculateMonthsOfStock(stock, inTransit, spend, forecast = 0) {
+            const effectiveSpend = spend + forecast;
+            if (effectiveSpend <= 0) return stock + inTransit > 0 ? '∞' : '0';
+            const totalAvailable = stock + inTransit;
+            const months = totalAvailable / effectiveSpend;
+            return months.toFixed(1);
+        }
+
+        function renderTableHeader() {
+            const topRow = document.getElementById('headerRowTop');
+            const subRow = document.getElementById('headerRowSub');
+            const t = translations[currentLang];
+
+            let topHtml = `
+                <th rowspan="2" class="px-3 py-3 sticky-col-1 border-r border-b shadow-sm bg-slate-100 w-[90px]">Artikel</th>
+                <th rowspan="2" class="px-3 py-3 sticky-col-2 border-r border-b shadow-sm bg-slate-100 min-w-[150px]">Mahsulot Nomi</th>
+                <th rowspan="2" class="px-3 py-3 sticky-col-3 border-r border-b shadow-sm bg-amber-50 text-amber-900 font-bold min-w-[110px]">Postavshik</th>
+                <th colspan="2" class="px-3 py-1 text-center bg-amber-100 text-amber-900 border-r border-b">Toshkent (${selectedYear} - ${monthNamesUz[selectedMonthIdx]})</th>
+            `;
+
+            let subHtml = `
+                <th class="px-1 py-1 text-center bg-amber-50 border-r text-amber-900">Ost</th>
+                <th class="px-1 py-1 text-center bg-amber-100 border-r text-amber-900">Yo'lda</th>
+            `;
+
+            if (selectedDealerFilter === 'all') {
+                topHtml += `<th colspan="6" class="px-4 py-2 text-center bg-indigo-600 text-white border-r border-b font-bold text-xs">🌐 Barcha Dillerlar (12 ta Diller Jami)</th>`;
+                subHtml += `
+                    <th class="px-2 py-1 text-center bg-slate-100 border-r text-slate-700 font-bold">Jami Ost</th>
+                    <th class="px-2 py-1 text-center bg-cyan-100 border-r text-cyan-900 font-bold">Jami Yo'lda</th>
+                    <th class="px-2 py-1 text-center bg-slate-200 border-r text-slate-800 font-bold">Jami Rasxod</th>
+                    <th class="px-2 py-1 text-center bg-amber-100 border-r text-amber-900 font-bold">Jami Prognoz</th>
+                    <th class="px-2 py-1 text-center bg-indigo-100 border-r font-bold text-indigo-900">Zakaz Jami</th>
+                    <th class="px-2 py-1 text-center bg-emerald-200 border-r font-bold text-emerald-900">${t.monthsLabel}</th>
+                `;
+            } else {
+                const idx = parseInt(selectedDealerFilter);
+                topHtml += `<th colspan="6" class="px-4 py-2 text-center bg-blue-600 text-white border-r border-b font-bold text-xs">📍 ${dealerNames[idx]}</th>`;
+                subHtml += `
+                    <th class="px-2 py-1 text-center bg-slate-50 border-r text-slate-700 font-semibold">Ost</th>
+                    <th class="px-2 py-1 text-center bg-cyan-100 border-r text-cyan-900 font-bold">Yo'lda</th>
+                    <th class="px-2 py-1 text-center bg-slate-100 border-r text-slate-700 font-semibold">Rasxod</th>
+                    <th class="px-2 py-1 text-center bg-amber-100 border-r text-amber-900 font-bold">Prognoz</th>
+                    <th class="px-2 py-1 text-center bg-indigo-100 border-r font-bold text-indigo-800">Zakaz</th>
+                    <th class="px-2 py-1 text-center bg-emerald-200 border-r font-bold text-emerald-900">${t.monthsLabel}</th>
+                `;
+            }
+
+            topHtml += `
+                <th rowspan="2" class="px-3 py-3 text-center bg-amber-200 text-amber-950 border-r border-b min-w-[110px]">${t.tashkentTotalStock}</th>
+                <th rowspan="2" class="px-3 py-3 text-center bg-emerald-200 text-emerald-950 border-r border-b min-w-[110px]">${t.tashkentMoS}</th>
+                <th rowspan="2" class="px-3 py-3 text-center bg-blue-100 text-blue-900 border-b min-w-[110px]">Toshkentga Import Zakaz</th>
+            `;
+
+            topRow.innerHTML = topHtml;
+            subRow.innerHTML = subHtml;
+        }
+
+        function getAllItems() {
+            let list = [];
+            if (activeSupplierKey === 'all') {
+                Object.keys(suppliers).forEach(k => {
+                    list = list.concat(suppliers[k].items);
+                });
+            } else {
+                list = suppliers[activeSupplierKey].items;
+            }
+            return list;
+        }
+
+        function renderTable() {
+            renderTableHeader();
+
+            const tbody = document.getElementById('productTableBody');
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const t = translations[currentLang];
+
+            if (activeSupplierKey === 'all') {
+                document.getElementById('leadTimeBadge').innerText = `Ko'rinish: Barcha Postavshiklar Mahsulotlari Oynasi`;
+            } else {
+                const sName = suppliers[activeSupplierKey].name || activeSupplierKey;
+                document.getElementById('leadTimeBadge').innerText = `${sName} - ${t.leadTimeText} ${suppliers[activeSupplierKey].leadTimeDays} ${t.days}`;
+            }
+
+            tbody.innerHTML = '';
+
+            const allItems = getAllItems();
+
+            const filteredItems = allItems.filter(item => {
+                const supName = suppliers[item.supplierKey] ? suppliers[item.supplierKey].name : item.supplierKey;
+                return item.sku.toLowerCase().includes(search) || 
+                       item.name.toLowerCase().includes(search) ||
+                       supName.toLowerCase().includes(search);
+            });
+
+            filteredItems.forEach((item) => {
+                const currentMonthData = item.periods[selectedYear][selectedMonthIdx];
+                const supInfo = suppliers[item.supplierKey] || { leadTimeDays: 30, name: item.supplierKey };
+                
+                let sumStock = 0;
+                let sumInTransit = 0;
+                let sumSpend = 0;
+                let sumForecast = 0;
+                let totalDealersOrder = 0;
+
+                currentMonthData.dealers.forEach((d) => {
+                    const dOrder = calculateDealerOrder(d.stock, d.inTransit, d.spend, d.forecast, supInfo.leadTimeDays);
+                    sumStock += d.stock;
+                    sumInTransit += d.inTransit;
+                    sumSpend += d.spend;
+                    sumForecast += d.forecast;
+                    totalDealersOrder += dOrder;
+                });
+
+                let dealerCellsHtml = '';
+
+                if (selectedDealerFilter === 'all') {
+                    const overallMoS = calculateMonthsOfStock(sumStock, sumInTransit, sumSpend, sumForecast);
+
+                    dealerCellsHtml = `
+                        <td class="px-2 py-2 text-center border-r font-bold text-slate-800 bg-slate-50">${sumStock}</td>
+                        <td class="px-2 py-2 text-center border-r font-bold text-cyan-900 bg-cyan-50">${sumInTransit}</td>
+                        <td class="px-2 py-2 text-center border-r font-bold text-slate-800 bg-slate-100">${sumSpend}</td>
+                        <td class="px-2 py-2 text-center border-r font-bold text-amber-900 bg-amber-50">${sumForecast}</td>
+                        <td class="px-2 py-2 text-center border-r font-bold text-indigo-800 bg-indigo-50 text-sm">${totalDealersOrder}</td>
+                        <td class="px-2 py-2 text-center border-r font-bold text-emerald-800 bg-emerald-50 text-sm">${overallMoS} oy</td>
+                    `;
+                } else {
+                    const idx = parseInt(selectedDealerFilter);
+                    const d = currentMonthData.dealers[idx];
+                    const dOrder = calculateDealerOrder(d.stock, d.inTransit, d.spend, d.forecast, supInfo.leadTimeDays);
+                    const dMoS = calculateMonthsOfStock(d.stock, d.inTransit, d.spend, d.forecast);
+
+                    dealerCellsHtml = `
+                        <td class="px-2 py-2 text-center border-r font-bold text-slate-700 bg-slate-50">
+                            ${d.stock}
+                        </td>
+                        <td class="px-2 py-2 text-center border-r font-bold text-cyan-900 bg-cyan-50">
+                            ${d.inTransit}
+                        </td>
+                        <td class="px-2 py-2 text-center border-r font-bold text-slate-800 bg-slate-100">
+                            ${d.spend}
+                        </td>
+                        <td class="px-1 py-1 text-center border-r bg-amber-50">
+                            <input type="number" value="${d.forecast}" 
+                                onchange="updateDealerData('${item.supplierKey}', '${item.sku}', ${idx}, 'forecast', this.value)"
+                                class="w-12 text-center border border-amber-300 rounded text-xs bg-amber-50 font-bold text-amber-900 focus:outline-none focus:ring-1 focus:ring-amber-500">
+                        </td>
+                        <td class="px-2 py-2 text-center border-r bg-indigo-50 font-bold text-indigo-700 text-sm">
+                            ${dOrder}
+                        </td>
+                        <td class="px-2 py-2 text-center border-r bg-emerald-50/70 font-bold text-emerald-800 text-sm">
+                            ${dMoS} oy
+                        </td>
+                    `;
+                }
+
+                const totalTashkentAvailable = currentMonthData.tashkentStock + currentMonthData.tashkentInTransit;
+                const totalDealersEffectiveSpend = sumSpend + sumForecast;
+                const tashkentMonthsOfStock = calculateMonthsOfStock(currentMonthData.tashkentStock, currentMonthData.tashkentInTransit, totalDealersEffectiveSpend);
+                const totalTashkentImportNeeded = Math.max(0, totalDealersOrder - totalTashkentAvailable);
+
+                const tr = document.createElement('tr');
+                tr.className = 'border-b hover:bg-slate-50 transition';
+
+                tr.innerHTML = `
+                    <td class="px-3 py-2 font-mono font-bold text-slate-700 sticky-col-1 border-r">${item.sku}</td>
+                    <td class="px-3 py-2 font-medium text-slate-900 sticky-col-2 border-r truncate max-w-[150px]" title="${item.name}">${item.name}</td>
+                    <td class="px-3 py-2 font-bold text-amber-800 sticky-col-3 border-r bg-amber-50/80">${supInfo.name || item.supplierKey}</td>
+                    
+                    <td class="px-2 py-2 text-center bg-amber-50 border-r font-bold text-amber-900">
+                        ${currentMonthData.tashkentStock}
+                    </td>
+
+                    <td class="px-2 py-2 text-center bg-amber-100/60 border-r font-bold text-amber-950">
+                        ${currentMonthData.tashkentInTransit}
+                    </td>
+
+                    ${dealerCellsHtml}
+
+                    <td class="px-3 py-2 text-center bg-amber-100 font-bold text-amber-950 border-r text-sm">${totalTashkentAvailable}</td>
+                    <td class="px-3 py-2 text-center bg-emerald-100 font-bold text-emerald-950 border-r text-sm">${tashkentMonthsOfStock} oy</td>
+                    <td class="px-3 py-2 text-center bg-blue-100 font-bold text-blue-900 text-sm">${totalTashkentImportNeeded}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateDealerData(supKey, sku, dealerIdx, field, val) {
+            const item = suppliers[supKey].items.find(i => i.sku === sku);
+            if (item) {
+                item.periods[selectedYear][selectedMonthIdx].dealers[dealerIdx][field] = parseInt(val) || 0;
+                renderTable();
+            }
+        }
+
+        /* --- POSTAVSHIK MODAL FUNKSIYALARI --- */
+        function openSupplierModal() {
+            renderSupplierModalList();
+            document.getElementById('supplierModal').classList.remove('hidden');
+        }
+
+        function closeSupplierModal() {
+            document.getElementById('supplierModal').classList.add('hidden');
+        }
+
+        function renderSupplierModalList() {
+            const container = document.getElementById('supplierListContainer');
+            container.innerHTML = '';
+
+            Object.keys(suppliers).forEach(key => {
+                const s = suppliers[key];
+                const div = document.createElement('div');
+                div.className = "flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200";
+                div.innerHTML = `
+                    <div>
+                        <div class="font-bold text-sm text-slate-800">${s.name || key}</div>
+                        <div class="text-[11px] text-slate-500">Mahsulotlar: ${s.items.length} ta</div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs text-slate-600 font-medium">Lead Time (kun):</label>
+                        <input type="number" value="${s.leadTimeDays}" 
+                            onchange="updateSupplierLeadTime('${key}', this.value)"
+                            class="w-16 border rounded px-2 py-1 text-xs font-bold text-center border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <button onclick="deleteSupplier('${key}')" class="text-slate-400 hover:text-red-600 p-1">
+                            <i class="fa-solid fa-trash-can text-sm"></i>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function updateSupplierLeadTime(key, val) {
+            const days = parseInt(val) || 0;
+            if (suppliers[key]) {
+                suppliers[key].leadTimeDays = days;
+                renderTable();
+            }
+        }
+
+        function addNewSupplier() {
+            const nameInput = document.getElementById('newSupplierName');
+            const ltInput = document.getElementById('newSupplierLeadTime');
+
+            const name = nameInput.value.trim();
+            const lt = parseInt(ltInput.value) || 30;
+
+            if (!name) {
+                alert("Postavshik nomini kiriting!");
+                return;
+            }
+
+            const key = name.replace(/\s+/g, '_');
+            suppliers[key] = {
+                name: name,
+                leadTimeDays: lt,
+                items: []
+            };
+
+            nameInput.value = '';
+            ltInput.value = '';
+
+            populateTemplateSupplierDropdown();
+            renderSupplierModalList();
+            renderTabs();
+            renderTable();
+        }
+
+        function deleteSupplier(key) {
+            if (Object.keys(suppliers).length <= 1) {
+                alert("Kamida bitta postavshik bo'lishi kerak!");
+                return;
+            }
+
+            if (confirm(`'${suppliers[key].name || key}' postavshikni o'chirmoqchimisiz?`)) {
+                delete suppliers[key];
+                activeSupplierKey = 'all';
+                populateTemplateSupplierDropdown();
+                renderSupplierModalList();
+                renderTabs();
+                renderTable();
+            }
+        }
+
+        function downloadUzbekTemplate() {
+            const supKey = document.getElementById('templateSupplierSelect').value;
+            const uzName = suppliers[supKey] ? suppliers[supKey].name : supKey;
+            const templateRows = [];
+
+            for (let i = 1; i <= 3; i++) {
+                const rowObj = {
+                    'Yil': selectedYear,
+                    'Oy': monthNamesUz[selectedMonthIdx],
+                    'Yetkazib beruvchi': uzName,
+                    'Artikel': `${supKey.substring(0,2).toUpperCase()}-100${i}`,
+                    'Mahsulot Nomi': `${uzName} Mahsuloti ${i}`,
+                    'Toshkent Ost': 50,
+                    'Toshkent Yo\'lda': 20
+                };
+
+                dealerNames.forEach((dName) => {
+                    rowObj[`${dName}_Ost`] = 10;
+                    rowObj[`${dName}_Yo'lda`] = 5;
+                    rowObj[`${dName}_Rasxod`] = 12;
+                    rowObj[`${dName}_Prognoz`] = 3;
+                });
+
+                templateRows.push(rowObj);
+            }
+
+            const worksheet = XLSX.utils.json_to_sheet(templateRows);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Shablon");
+            XLSX.writeFile(workbook, `Shablon_${uzName}_${selectedYear}_${monthNamesUz[selectedMonthIdx]}.xlsx`);
+        }
+
+        /* --- EXCEL YUKLANGANDA ARTIKEL, NOMI VA HAMMA MA'LUMOTLARNI YANGILASH --- */
+        function importFromExcel(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+                    if (jsonData.length === 0) {
+                        alert("Excel faylida ma'lumot topilmadi!");
+                        return;
+                    }
+
+                    jsonData.forEach((row, index) => {
+                        const rowYear = parseInt(row['Yil']) || selectedYear;
+                        const rowMonthStr = row['Oy'] || monthNamesUz[selectedMonthIdx];
+                        let rowMonthIdx = monthNamesUz.findIndex(m => m.toLowerCase() === String(rowMonthStr).toLowerCase());
+                        if (rowMonthIdx === -1) rowMonthIdx = selectedMonthIdx;
+
+                        const rawSup = String(row['Yetkazib beruvchi'] || row['Supplier'] || row['Postavshik'] || 'China');
+                        let targetSupplier = Object.keys(suppliers).find(k => 
+                            k.toLowerCase() === rawSup.toLowerCase() || 
+                            (suppliers[k].name && suppliers[k].name.toLowerCase() === rawSup.toLowerCase())
+                        );
+
+                        if (!targetSupplier) {
+                            targetSupplier = rawSup.replace(/\s+/g, '_');
+                            suppliers[targetSupplier] = {
+                                name: rawSup,
+                                leadTimeDays: 30,
+                                items: []
+                            };
+                        }
+
+                        const sku = String(row['Artikel'] || row['SKU'] || row['Code'] || `ITEM-${1000 + index}`).trim();
+                        const productNameFromExcel = String(
+                            row['Mahsulot Nomi'] || 
+                            row['Mahsulot nomi'] || 
+                            row['Nomi'] || 
+                            row['Name'] || 
+                            row['Product Name'] || 
+                            'Mahsulot'
+                        ).trim();
+
+                        let existingItem = suppliers[targetSupplier].items.find(i => i.sku.toLowerCase() === sku.toLowerCase());
+
+                        const dealerData = dealerNames.map((dName) => {
+                            return {
+                                stock: parseInt(row[`${dName}_Ost`] || row[`${dName}_Stock`] || 0),
+                                inTransit: parseInt(row[`${dName}_Yo'lda`] || row[`${dName}_InTransit`] || 0),
+                                spend: parseInt(row[`${dName}_Rasxod`] || row[`${dName}_Spend`] || 0),
+                                forecast: parseInt(row[`${dName}_Prognoz`] || row[`${dName}_Forecast`] || 0)
+                            };
+                        });
+
+                        if (!existingItem) {
+                            const periodData = {};
+                            [2026, 2027].forEach(y => {
+                                periodData[y] = {};
+                                for (let m = 0; m < 12; m++) {
+                                    periodData[y][m] = {
+                                        tashkentStock: 0,
+                                        tashkentInTransit: 0,
+                                        dealers: Array.from({length: 12}, () => ({ stock: 0, inTransit: 0, spend: 0, forecast: 0 }))
+                                    };
+                                }
+                            });
+                            existingItem = {
+                                sku: sku,
+                                name: productNameFromExcel,
+                                supplierKey: targetSupplier,
+                                periods: periodData
+                            };
+                            suppliers[targetSupplier].items.push(existingItem);
+                        } else {
+                            existingItem.name = productNameFromExcel;
+                        }
+
+                        existingItem.periods[rowYear][rowMonthIdx] = {
+                            tashkentStock: parseInt(row['Toshkent Ost'] || row['Tashkent Stock'] || 0),
+                            tashkentInTransit: parseInt(row['Toshkent Yo\'lda'] || row['Tashkent InTransit'] || 0),
+                            dealers: dealerData
+                        };
+                    });
+
+                    populateTemplateSupplierDropdown();
+                    renderTabs();
+                    renderTable();
+                    alert("Excel ma'lumotlari muvaffaqiyatli yuklandi!");
+                    if (typeof window.saveDataToFirebase === 'function') {
+                        window.saveDataToFirebase();
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert("Excel faylini o'qishda xatolik yuz berdi. Shablon mosligini tekshiring.");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function exportToExcel() {
+            const exportData = [];
+
+            Object.keys(suppliers).forEach(supKey => {
+                suppliers[supKey].items.forEach(item => {
+                    const currentMonthData = item.periods[selectedYear][selectedMonthIdx];
+                    let totalDealersOrder = 0;
+                    let totalDealersEffectiveSpend = 0;
+
+                    const rowObj = {
+                        'Yil': selectedYear,
+                        'Oy': monthNamesUz[selectedMonthIdx],
+                        'Yetkazib beruvchi': suppliers[supKey].name || supKey,
+                        'Artikel': item.sku,
+                        'Mahsulot Nomi': item.name,
+                        'Toshkent Ost': currentMonthData.tashkentStock,
+                        'Toshkent Yo\'lda': currentMonthData.tashkentInTransit,
+                    };
+
+                    currentMonthData.dealers.forEach((d, idx) => {
+                        const dOrder = calculateDealerOrder(d.stock, d.inTransit, d.spend, d.forecast, suppliers[supKey].leadTimeDays);
+                        
+                        totalDealersOrder += dOrder;
+                        totalDealersEffectiveSpend += (d.spend + d.forecast);
+
+                        rowObj[`${dealerNames[idx]}_Ost`] = d.stock;
+                        rowObj[`${dealerNames[idx]}_Yo'lda`] = d.inTransit;
+                        rowObj[`${dealerNames[idx]}_Rasxod`] = d.spend;
+                        rowObj[`${dealerNames[idx]}_Prognoz`] = d.forecast;
+                        rowObj[`${dealerNames[idx]}_Zakaz`] = dOrder;
+                    });
+
+                    rowObj['Dillerlar Zakaz Jami'] = totalDealersOrder;
+                    
+                    const tashkentAvail = currentMonthData.tashkentStock + currentMonthData.tashkentInTransit;
+                    const tashkentMoS = calculateMonthsOfStock(currentMonthData.tashkentStock, currentMonthData.tashkentInTransit, totalDealersEffectiveSpend);
+                    
+                    rowObj['Toshkent Jami Zapas'] = tashkentAvail;
+                    rowObj['Toshkent Zapas (Oy)'] = tashkentMoS;
+                    rowObj['Toshkent Import Zakaz'] = Math.max(0, totalDealersOrder - tashkentAvail);
+
+                    exportData.push(rowObj);
+                });
+            });
+
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Zakazlar_Jadvali");
+            XLSX.writeFile(workbook, `Zakaz_Rejalashtirish_${selectedYear}_${monthNamesUz[selectedMonthIdx]}.xlsx`);
+        }
+
+        generateInitialData();
+        renderMonthSelectors();
+        renderWorkflow();
+        setLanguage('uz');
+    </script>
+</body>
+</html>
